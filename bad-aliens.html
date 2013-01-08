@@ -11,6 +11,7 @@
       earth: 'https://raw.github.com/sethladd/Bad-Aliens/master/static/img/earth.png',
       alien: 'https://raw.github.com/sethladd/Bad-Aliens/master/static/img/alien.png',
       sentry: 'https://raw.github.com/sethladd/Bad-Aliens/master/static/img/sentry.png',
+      bullet: 'https://raw.github.com/sethladd/Bad-Aliens/master/static/img/bullet.png',
       smalllas: 'http://www.freesound.org/data/previews/18/18397_71614-lq.mp3',
       rocketexpl: 'http://www.freesound.org/data/previews/47/47252_364925-lq.mp3',
       usat_bomb: 'http://www.freesound.org/data/previews/35/35643_14771-lq.mp3'
@@ -180,6 +181,7 @@
       this.clockTick = this.timer.tick();
       this.update();
       this.draw();
+      this.click = null;
     };
 
     function Entity(game, x, y) {
@@ -216,7 +218,7 @@
              this.y < -(this.game.halfSurfaceHeight));
     }
 
-    Entity.prototype.rotateAndCache = function(image) {
+    Entity.prototype.rotateAndCache = function(image, angle) {
       var offscreenCanvas = document.createElement('canvas');
       var size = Math.max(image.width, image.height);
       offscreenCanvas.width = size;
@@ -224,7 +226,7 @@
       var offscreenCtx = offscreenCanvas.getContext('2d');
       offscreenCtx.save();
       offscreenCtx.translate(size / 2, size / 2);
-      offscreenCtx.rotate(this.angle + Math.PI / 2);
+      offscreenCtx.rotate(angle + Math.PI / 2);
       offscreenCtx.drawImage(image, -(image.width / 2), -(image.height / 2));
       offscreenCtx.restore();
       return offscreenCanvas;
@@ -236,7 +238,7 @@
       this.radial_distance = radial_distance;
       this.angle = angle;
       this.speed = 100;
-      this.sprite = this.rotateAndCache(ASSET_MANAGER.getAsset(R.alien));
+      this.sprite = this.rotateAndCache(ASSET_MANAGER.getAsset(R.alien), this.angle);
       this.radius = this.sprite.height / 2;
       this.setCoords();
     }
@@ -286,6 +288,9 @@
         this.x = (Math.cos(this.angle) * this.distanceFromEarthCenter);
         this.y = (Math.sin(this.angle) * this.distanceFromEarthCenter);
       }
+      if (this.game.click) {
+        this.shoot();
+      }
       Entity.prototype.update.call(this);
     }
 
@@ -299,6 +304,39 @@
       Entity.prototype.draw.call(this, ctx);
     }
 
+    Sentry.prototype.shoot = function() {
+      var bullet = new Bullet(this.game, this.x, this.y, this.angle, this.game.click);
+      this.game.addEntity(bullet);
+    };
+
+    function Bullet(game, x, y, angle, explodesAt) {
+      Entity.call(this, game, x, y);
+      this.angle = angle;
+      this.explodesAt = explodesAt;
+      this.speed = 250;
+      this.radial_distance = 95;
+      this.sprite = this.rotateAndCache(ASSET_MANAGER.getAsset(R.bullet), this.angle);
+    }
+
+    Bullet.prototype = new Entity();
+    Bullet.prototype.constructor = Bullet;
+
+    Bullet.prototype.update = function() {
+      if (this.outsideScreen()) {
+        this.removeFromWorld = true;
+      }
+      else {
+        this.x = this.radial_distance * Math.cos(this.angle);
+        this.y = this.radial_distance * Math.sin(this.angle);
+        this.radial_distance += this.speed * this.game.clockTick;
+      }
+    }
+
+    Bullet.prototype.draw = function(ctx) {
+      this.drawSpriteCentered(ctx);
+
+      Entity.prototype.draw.call(this, ctx);
+    };
 
     Earth.prototype = new Entity();
     Earth.prototype.constructor = Earth;
@@ -351,6 +389,7 @@
   var ASSET_MANAGER = new AssetManager();
 
   // change
+  ASSET_MANAGER.queueDownload(R.bullet);
   ASSET_MANAGER.queueDownload(R.sentry);
   ASSET_MANAGER.queueDownload(R.alien);
   ASSET_MANAGER.queueDownload(R.earth);
