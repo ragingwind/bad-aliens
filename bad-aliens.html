@@ -215,7 +215,12 @@
     };
 
     Alien.prototype.draw = function(ctx) {
-      this.drawSpriteCentered(ctx);
+      ctx.save();
+      ctx.translate(this.x, this.y);
+      ctx.rotate(this.angle + Math.PI / 2);
+      ctx.drawImage(this.sprite, -this.sprite.width / 2, -this.sprite.height / 2);
+      ctx.restore();
+
       Entity.prototype.draw.call(this.ctx);
     };
 
