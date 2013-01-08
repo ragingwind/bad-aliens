@@ -9,10 +9,23 @@
     // please visit to [sethladd/Bad-Aliens · GitHub]( http://goo.gl/qxjlL )
     var R = {
       earth: 'https://raw.github.com/sethladd/Bad-Aliens/master/static/img/earth.png',
+      alien: 'https://raw.github.com/sethladd/Bad-Aliens/master/static/img/alien.png',
       smalllas: 'http://www.freesound.org/data/previews/18/18397_71614-lq.mp3',
       rocketexpl: 'http://www.freesound.org/data/previews/47/47252_364925-lq.mp3',
       usat_bomb: 'http://www.freesound.org/data/previews/35/35643_14771-lq.mp3'
     };
+
+    // [requestAnimationFrame for smart animating « Paul Irish]( http://goo.gl/hiFOk )
+    window.requestAnimFrame = (function(){
+      return window.requestAnimationFrame       ||
+             window.webkitRequestAnimationFrame ||
+             window.mozRequestAnimationFrame    ||
+             window.oRequestAnimationFrame      ||
+             window.msRequestAnimationFrame     ||
+             function(/* function */ callback, /* DOMElement */ element){
+               window.setTimeout(callback, 1000 / 60);
+             };
+    })();
 
     function AssetManager() {
       this.successCount = 0;
@@ -54,6 +67,186 @@
       return this.cache[path];
     }
 
+    function GameEngine() {
+      this.entities = [];
+      this.ctx = null;
+      this.lastUpdateTimestamp = null;
+      this.deltaTime = null;
+
+      this.surfaceWidth = null;
+      this.surfaceHeight = null;
+      this.halfSurfaceWidth = null;
+      this.halfSurfaceHeight = null;
+    };
+
+    GameEngine.prototype.init = function(ctx) {
+      console.log('game initialized');
+      this.ctx = ctx;
+      this.surfaceWidth = this.ctx.canvas.width;
+      this.surfaceHeight = this.ctx.canvas.height;
+      this.halfSurfaceWidth = this.surfaceWidth / 2;
+      this.halfSurfaceHeight = this.surfaceHeight / 2;
+    }
+
+    GameEngine.prototype.start = function() {
+      console.log("starting game");
+      this.lastUpdateTimestamp = Date.now();
+      var that = this;
+      (function gameLoop() {
+        console.log('loop')
+        that.loop();
+        requestAnimFrame(gameLoop, that.ctx.canvas);
+      })();
+    };
+
+    GameEngine.prototype.addEntity = function(entity) {
+      this.entities.push(entity);
+    }
+
+    GameEngine.prototype.draw = function(callback) {
+      this.ctx.clearRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
+      this.ctx.save();
+      this.ctx.translate(this.ctx.canvas.width / 2, this.ctx.canvas.height / 2);
+      for (var i = 0; i < this.entities.length; i++) {
+        this.entities[i].draw(this.ctx);
+      }
+
+      if (callback) {
+        callback(this);
+      }
+
+      this.ctx.restore();
+    };
+
+    GameEngine.prototype.update = function() {
+      var entitiesCount = this.entities.length;
+
+      for (var i = 0; i < entitiesCount; i++) {
+        var entity = this.entities[i];
+
+        if (!entity.removeFromWorld) {
+          entity.update();
+        }
+      }
+
+      for (var i = this.entities.length - 1; i >= 0; --i) {
+        if (this.entities[i].removeFromWorld) {
+          this.entities.splice(i, 1);
+        }
+      }
+    };
+
+    GameEngine.prototype.loop = function() {
+      var now = Date.now();
+      this.deltaTime = now - this.lastUpdateTimestamp;
+      this.update();
+      this.draw();
+      this.lastUpdateTimestamp = now;
+    };
+
+    function Entity(game, x, y) {
+      this.game = game;
+      this.x = x;
+      this.y = y;
+      this.removeFromWorld = false;
+    };
+
+    Entity.prototype.update = function() {};
+
+    Entity.prototype.draw = function() {
+      if (this.game.showOutlines && this.radius) {
+        ctx.beginPath();
+        ctx.strokeStyle = "game";
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2, false);
+        ctx.stoke();
+        ctx.closePath();
+      }
+    };
+
+    Entity.prototype.drawSpriteCentered = function(ctx) {
+      if (this.sprite && this.x && this.y) {
+        var x = this.x - this.sprite.width / 2;
+        var y = this.y - this.sprite.height / 2;
+        ctx.drawImage(this.sprite, x, y);
+      }
+    };
+
+    Entity.prototype.outsideScreen = function() {
+     return (this.x > this.game.halfSurfaceWidth ||
+             this.x < -(this.game.halfSurfaceWidth) ||
+             this.y > this.game.halfSurfaceHeight ||
+             this.y < -(this.game.halfSurfaceHeight));
+    }
+
+    function Alien(game, radial_distance, angle) {
+      Entity.call(this, game);
+      this.radial_distance = radial_distance;
+      this.angle = angle;
+      this.speed = 0.2;
+      this.sprite = ASSET_MANAGER.getAsset(R.alien);
+      this.radius = this.sprite.height / 2;
+      this.setCoords();
+    }
+
+    Alien.prototype = new Entity();
+    Alien.prototype.constructor = Alien;
+
+    Alien.prototype.setCoords = function() {
+      this.x = this.radial_distance * Math.cos(this.angle);
+      this.y = this.radial_distance * Math.sin(this.angle);
+    };
+
+    Alien.prototype.update = function() {
+      this.setCoords();
+      this.radial_distance -= this.speed * this.game.deltaTime;
+
+      Entity.prototype.update.call(this);
+    };
+
+    Alien.prototype.draw = function(ctx) {
+      this.drawSpriteCentered(ctx);
+      Entity.prototype.draw.call(this.ctx);
+    };
+
+    function Earth(game) {
+      Entity.call(this, game, 0, 0);
+      this.sprite = ASSET_MANAGER.getAsset(R.earth);
+    }
+
+    Earth.prototype = new Entity();
+    Earth.prototype.constructor = Earth;
+    Earth.RADIUS = 67;
+
+    Earth.prototype.draw = function(ctx) {
+      ctx.drawImage(this.sprite, this.x - this.sprite.width / 2, this.y - this.sprite.height / 2);
+    }
+
+    function EvilAliens() {
+      GameEngine.call(this);
+    }
+
+    EvilAliens.prototype = new GameEngine();
+    EvilAliens.prototype.constructor = EvilAliens;
+
+    EvilAliens.prototype.start = function() {
+      this.earth = new Earth(this);
+      this.addEntity(this.earth);
+      GameEngine.prototype.start.call(this);
+    }
+
+    EvilAliens.prototype.update = function() {
+      if (this.lastAlienAddedAt == null || (this.lastUpdateTimestamp - this.lastAlienAddedAt) > 1000) {
+        this.addEntity(new Alien(this, this.ctx.canvas.width, Math.random() * Math.PI * 180));
+        this.lastAlienAddedAt = this.lastUpdateTimestamp;
+      }
+
+      GameEngine.prototype.update.call(this);
+    }
+
+    EvilAliens.prototype.draw = function() {
+      GameEngine.prototype.draw.call(this);
+    };
+
   </script>
   </head>
   <body>
@@ -64,16 +257,15 @@
 <script type="text/javascript">
   var canvas = document.getElementById('surface');
   var ctx = canvas.getContext('2d');
+  var game = new EvilAliens();
   var ASSET_MANAGER = new AssetManager();
 
+  // change
+  ASSET_MANAGER.queueDownload(R.alien);
   ASSET_MANAGER.queueDownload(R.earth);
 
   ASSET_MANAGER.downloadAll(function() {
-    var x = 0, y = 0;
-    var sprite = ASSET_MANAGER.getAsset(R.earth);
-    ctx.save();
-    ctx.translate(canvas.width/2, canvas.height/2);
-    ctx.drawImage(sprite, x - sprite.width/2, y - sprite.height/2);
-    ctx.restore();
+    game.init(ctx);
+    game.start();
   });
 </script>
