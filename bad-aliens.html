@@ -12,6 +12,7 @@
       alien: 'https://raw.github.com/sethladd/Bad-Aliens/master/static/img/alien.png',
       sentry: 'https://raw.github.com/sethladd/Bad-Aliens/master/static/img/sentry.png',
       bullet: 'https://raw.github.com/sethladd/Bad-Aliens/master/static/img/bullet.png',
+      explosion: 'https://raw.github.com/sethladd/Bad-Aliens/master/static/img/explosion.png',
       smalllas: 'http://www.freesound.org/data/previews/18/18397_71614-lq.mp3',
       rocketexpl: 'http://www.freesound.org/data/previews/47/47252_364925-lq.mp3',
       usat_bomb: 'http://www.freesound.org/data/previews/35/35643_14771-lq.mp3'
@@ -73,6 +74,47 @@
       this.gameTime = 0;
       this.maxStep = 0.05;
       this.wallLastTimestamp = 0;
+    }
+
+    function Animation(spriteSheet, frameWidth, frameDuration, loop) {
+      this.spriteSheet = spriteSheet;
+      this.frameWidth = frameWidth;
+      this.frameDuration = frameDuration;
+      this.frameHeight = this.spriteSheet.height;
+      this.totalTime = (this.spriteSheet.width / this.frameWidth) * this.frameDuration;
+      this.elapsedTime = 0;
+      this.loop = loop;
+    };
+
+    Animation.prototype.drawFrame = function(tick, ctx, x, y, scaleBy) {
+      var scaleBy = scaleBy || 1;
+      this.elapsedTime += tick;
+      if (this.loop) {
+        if (this.isDone()) {
+          this.elapsedTime = 0;
+        }
+      }
+      else if (this.isDone()) {
+        return;
+      }
+
+      var index = this.currentFrame();
+      var locX = x - (this.frameWidth / 2) * scaleBy;
+      var locY = y - (this.frameHeight / 2) * scaleBy;
+      ctx.drawImage(this.spriteSheet,
+                    index * this.frameWidth, 0,
+                    this.frameWidth, this.frameHeight,
+                    locX, locY,
+                    this.frameWidth * scaleBy,
+                    this.frameHeight * scaleBy);
+    };
+
+    Animation.prototype.currentFrame = function() {
+      return Math.floor(this.elapsedTime / this.frameDuration);
+    };
+
+    Animation.prototype.isDone = function() {
+      return (this.elapsedTime >= this.totalTime);
     }
 
     Timer.prototype.tick = function() {
@@ -264,11 +306,6 @@
       Entity.prototype.draw.call(this.ctx);
     };
 
-    function Earth(game) {
-      Entity.call(this, game, 0, 0);
-      this.sprite = ASSET_MANAGER.getAsset(R.earth);
-    }
-
     function Sentry(game) {
       this.distanceFromEarthCenter = 85;
       Entity.call(this, game, 0, this.distanceFromEarthCenter);
@@ -315,7 +352,8 @@
       this.explodesAt = explodesAt;
       this.speed = 250;
       this.radial_distance = 95;
-      this.sprite = this.rotateAndCache(ASSET_MANAGER.getAsset(R.bullet), this.angle);
+      this.sprite = ASSET_MANAGER.getAsset(R.bullet);
+      this.animation = new Animation(this.sprite, 7, 0.05, true);
     }
 
     Bullet.prototype = new Entity();
@@ -323,6 +361,10 @@
 
     Bullet.prototype.update = function() {
       if (this.outsideScreen()) {
+        this.removeFromWorld = true;
+      }
+      else if (Math.abs(this.x) >= Math.abs(this.explodesAt.x) || Math.abs(this.y) >= Math.abs(this.explodesAt.y)) {
+        this.game.addEntity(new BulletExplosion(this.game, this.explodesAt.x, this.explodesAt.y));
         this.removeFromWorld = true;
       }
       else {
@@ -333,10 +375,50 @@
     }
 
     Bullet.prototype.draw = function(ctx) {
-      this.drawSpriteCentered(ctx);
+      ctx.save();
+      ctx.translate(this.x, this.y);
+      ctx.rotate(this.angle + Math.PI / 2);
+      ctx.translate(-this.x, -this.y);
+      this.animation.drawFrame(this.game.clockTick, ctx, this.x, this.y);
+      ctx.restore();
 
       Entity.prototype.draw.call(this, ctx);
     };
+
+    function BulletExplosion(game, x, y) {
+      Entity.call(this, game, x, y);
+      this.sprite = ASSET_MANAGER.getAsset(R.explosion);
+      this.animation = new Animation(this.sprite, 34, 0.05);
+      this.radius = this.animation.frameWidth / 2;
+    }
+
+    BulletExplosion.prototype = new Entity();
+    BulletExplosion.prototype.constructor = BulletExplosion;
+
+    BulletExplosion.prototype.update = function() {
+      Entity.prototype.update.call(this);
+
+      if (this.animation.isDone()) {
+        this.removeFromWorld = true;
+        return;
+      }
+
+      this.radius = (this.animation.frameWidth / 2) * this.scaleFactor();
+    };
+
+    BulletExplosion.prototype.scaleFactor = function() {
+      return 1 + (this.animation.currentFrame() / 3);
+    };
+
+    BulletExplosion.prototype.draw = function(ctx) {
+      this.animation.drawFrame(this.game.clockTick, ctx, this.x, this.y, this.scaleFactor());
+      Entity.prototype.draw.call(this, ctx);
+    }
+
+    function Earth(game) {
+      Entity.call(this, game, 0, 0);
+      this.sprite = ASSET_MANAGER.getAsset(R.earth);
+    }
 
     Earth.prototype = new Entity();
     Earth.prototype.constructor = Earth;
@@ -389,6 +471,7 @@
   var ASSET_MANAGER = new AssetManager();
 
   // change
+  ASSET_MANAGER.queueDownload(R.explosion);
   ASSET_MANAGER.queueDownload(R.bullet);
   ASSET_MANAGER.queueDownload(R.sentry);
   ASSET_MANAGER.queueDownload(R.alien);
