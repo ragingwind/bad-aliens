@@ -189,12 +189,25 @@
              this.y < -(this.game.halfSurfaceHeight));
     }
 
+    Entity.prototype.rotateAndCache = function(image) {
+      var offscreenCanvas = document.createElement('canvas');
+      var size = Math.max(image.width, image.height);
+      offscreenCanvas.width = size;
+      offscreenCanvas.height = size;
+      var offscreenCtx = offscreenCanvas.getContext('2d');
+      offscreenCtx.translate(size / 2, size / 2);
+      offscreenCtx.rotate(this.angle + Math.PI / 2);
+      offscreenCtx.drawImage(image, -(image.width / 2), -(image.height / 2));
+      return offscreenCanvas;
+    }
+
+
     function Alien(game, radial_distance, angle) {
       Entity.call(this, game);
       this.radial_distance = radial_distance;
       this.angle = angle;
       this.speed = 100;
-      this.sprite = ASSET_MANAGER.getAsset(R.alien);
+      this.sprite = this.rotateAndCache(ASSET_MANAGER.getAsset(R.alien));
       this.radius = this.sprite.height / 2;
       this.setCoords();
     }
@@ -215,11 +228,7 @@
     };
 
     Alien.prototype.draw = function(ctx) {
-      ctx.save();
-      ctx.translate(this.x, this.y);
-      ctx.rotate(this.angle + Math.PI / 2);
-      ctx.drawImage(this.sprite, -this.sprite.width / 2, -this.sprite.height / 2);
-      ctx.restore();
+      this.drawSpriteCentered(ctx);
 
       Entity.prototype.draw.call(this.ctx);
     };
