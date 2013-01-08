@@ -10,6 +10,7 @@
     var R = {
       earth: 'https://raw.github.com/sethladd/Bad-Aliens/master/static/img/earth.png',
       alien: 'https://raw.github.com/sethladd/Bad-Aliens/master/static/img/alien.png',
+      sentry: 'https://raw.github.com/sethladd/Bad-Aliens/master/static/img/sentry.png',
       smalllas: 'http://www.freesound.org/data/previews/18/18397_71614-lq.mp3',
       rocketexpl: 'http://www.freesound.org/data/previews/47/47252_364925-lq.mp3',
       usat_bomb: 'http://www.freesound.org/data/previews/35/35643_14771-lq.mp3'
@@ -86,6 +87,8 @@
     function GameEngine() {
       this.entities = [];
       this.ctx = null;
+      this.click = null;
+      this.mouse = null;
       this.timer = new Timer();
       this.surfaceWidth = null;
       this.surfaceHeight = null;
@@ -100,6 +103,7 @@
       this.surfaceHeight = this.ctx.canvas.height;
       this.halfSurfaceWidth = this.surfaceWidth / 2;
       this.halfSurfaceHeight = this.surfaceHeight / 2;
+      this.startInput();
     }
 
     GameEngine.prototype.start = function() {
@@ -111,6 +115,29 @@
         requestAnimFrame(gameLoop, that.ctx.canvas);
       })();
     };
+
+    GameEngine.prototype.startInput = function() {
+      var getXandY = function(e) {
+          var x = e.clientX - that.ctx.canvas.getBoundingClientRect().left - (that.ctx.canvas.width / 2);
+          var y = e.clientY - that.ctx.canvas.getBoundingClientRect().top - (that.ctx.canvas.height / 2);
+          return {
+            x: x,
+            y: y
+          };
+        }
+
+      var that = this;
+
+      this.ctx.canvas.addEventListener("click", function(e) {
+        that.click = getXandY(e);
+        e.stopPropagation();
+        e.preventDefault();
+      }, false);
+
+      this.ctx.canvas.addEventListener("mousemove", function(e) {
+        that.mouse = getXandY(e);
+      }, false);
+    }
 
     GameEngine.prototype.addEntity = function(entity) {
       this.entities.push(entity);
@@ -195,9 +222,11 @@
       offscreenCanvas.width = size;
       offscreenCanvas.height = size;
       var offscreenCtx = offscreenCanvas.getContext('2d');
+      offscreenCtx.save();
       offscreenCtx.translate(size / 2, size / 2);
       offscreenCtx.rotate(this.angle + Math.PI / 2);
       offscreenCtx.drawImage(image, -(image.width / 2), -(image.height / 2));
+      offscreenCtx.restore();
       return offscreenCanvas;
     }
 
@@ -238,6 +267,39 @@
       this.sprite = ASSET_MANAGER.getAsset(R.earth);
     }
 
+    function Sentry(game) {
+      this.distanceFromEarthCenter = 85;
+      Entity.call(this, game, 0, this.distanceFromEarthCenter);
+      this.sprite = ASSET_MANAGER.getAsset(R.sentry);
+      this.radius = this.sprite.width / 2;
+      this.angle = 0;
+    }
+    Sentry.prototype = new Entity();
+    Sentry.prototype.constructor = Sentry;
+
+    Sentry.prototype.update = function() {
+      if (this.game.mouse) {
+        this.angle = Math.atan2(this.game.mouse.y, this.game.mouse.x);
+        if (this.angle < 0) {
+          this.angle += Math.PI * 2;
+        }
+        this.x = (Math.cos(this.angle) * this.distanceFromEarthCenter);
+        this.y = (Math.sin(this.angle) * this.distanceFromEarthCenter);
+      }
+      Entity.prototype.update.call(this);
+    }
+
+    Sentry.prototype.draw = function(ctx) {
+      ctx.save();
+      ctx.translate(this.x, this.y);
+      ctx.rotate(this.angle + Math.PI / 2);
+      ctx.drawImage(this.sprite, -this.sprite.width / 2, -this.sprite.height / 2);
+      ctx.restore();
+
+      Entity.prototype.draw.call(this, ctx);
+    }
+
+
     Earth.prototype = new Entity();
     Earth.prototype.constructor = Earth;
     Earth.RADIUS = 67;
@@ -254,7 +316,10 @@
     EvilAliens.prototype.constructor = EvilAliens;
 
     EvilAliens.prototype.start = function() {
+      this.sentry = new Sentry(this);
       this.earth = new Earth(this);
+
+      this.addEntity(this.sentry);
       this.addEntity(this.earth);
       GameEngine.prototype.start.call(this);
     }
@@ -286,6 +351,7 @@
   var ASSET_MANAGER = new AssetManager();
 
   // change
+  ASSET_MANAGER.queueDownload(R.sentry);
   ASSET_MANAGER.queueDownload(R.alien);
   ASSET_MANAGER.queueDownload(R.earth);
 
