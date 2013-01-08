@@ -10,7 +10,8 @@
         alien: 'https://raw.github.com/sethladd/Bad-Aliens/master/static/img/alien.png',
         sentry: 'https://raw.github.com/sethladd/Bad-Aliens/master/static/img/sentry.png',
         bullet: 'https://raw.github.com/sethladd/Bad-Aliens/master/static/img/bullet.png',
-        explosion: 'https://raw.github.com/sethladd/Bad-Aliens/master/static/img/explosion.png'
+        explosion: 'https://raw.github.com/sethladd/Bad-Aliens/master/static/img/explosion.png',
+        alien_explosion: 'https://raw.github.com/sethladd/Bad-Aliens/master/static/img/alien-explosion.png'
       },
       sounds: {
         bullet: 'https://github.com/sethladd/Bad-Aliens/raw/master/static/audio/bullet.mp3',
@@ -309,14 +310,51 @@
       this.setCoords();
       this.radial_distance -= this.speed * this.game.clockTick;
 
+      if (this.hitPlanet()) {
+        this.removeFromWorld = true;
+        this.game.lives -= 1;
+      }
+
       Entity.prototype.update.call(this);
     };
+
+    Alien.prototype.hitPlanet = function() {
+      var distance_squared = ((this.x * this.x) + (this.y * this.y));
+      var radii_squared = (this.radius + Earth.RADIUS) * (this.radius + Earth.RADIUS);
+      return distance_squared < radii_squared;
+    }
 
     Alien.prototype.draw = function(ctx) {
       this.drawSpriteCentered(ctx);
 
       Entity.prototype.draw.call(this.ctx);
     };
+
+    Alien.prototype.explode = function() {
+      this.removeFromWorld = true;
+      this.game.addEntity(new AlienExplosion(this.game, this.x, this.y));
+      ASSET_MANAGER.playSound(R.sounds.alien_boom);
+    }
+
+    function AlienExplosion(game, x, y) {
+        Entity.call(this, game, x, y);
+        this.animation = new Animation(ASSET_MANAGER.getAsset(R.images.alien_explosion), 69, 0.05);
+        this.radius = this.animation.frameWidth / 2;
+    }
+    AlienExplosion.prototype = new Entity();
+    AlienExplosion.prototype.constructor = AlienExplosion;
+
+    AlienExplosion.prototype.update = function() {
+      Entity.prototype.update.call(this);
+      if (this.animation.isDone()) {
+        this.removeFromWorld = true;
+      }
+    }
+
+    AlienExplosion.prototype.draw = function(ctx) {
+      Entity.prototype.draw.call(this, ctx);
+      this.animation.drawFrame(this.game.clockTick, ctx, this.x, this.y);
+    }
 
     function Sentry(game) {
       this.distanceFromEarthCenter = 85;
@@ -418,7 +456,23 @@
       }
 
       this.radius = (this.animation.frameWidth / 2) * this.scaleFactor();
+
+      for (var i = 0; i < this.game.entities.length; i++) {
+        var alien = this.game.entities[i];
+        if (alien instanceof Alien && this.isCaughtInExplosion(alien)) {
+          console.log("hit!");
+          this.game.score += 10;
+          alien.explode();
+        }
+      }
     };
+
+    BulletExplosion.prototype.isCaughtInExplosion = function(alien) {
+      var distance_squared = (((this.x - alien.x) * (this.x - alien.x)) + ((this.y - alien.y) * (this.y - alien.y)));
+      var radii_squared = (this.radius + alien.radius) * (this.radius + alien.radius);
+      return distance_squared < radii_squared;
+    }
+
 
     BulletExplosion.prototype.scaleFactor = function() {
       return 1 + (this.animation.currentFrame() / 3);
@@ -484,16 +538,15 @@
   var game = new EvilAliens();
   var ASSET_MANAGER = new AssetManager();
 
+  ASSET_MANAGER.queueDownload(R.images.alien_explosion);
   ASSET_MANAGER.queueDownload(R.images.explosion);
   ASSET_MANAGER.queueDownload(R.images.bullet);
   ASSET_MANAGER.queueDownload(R.images.sentry);
   ASSET_MANAGER.queueDownload(R.images.alien);
   ASSET_MANAGER.queueDownload(R.images.earth);
-
   ASSET_MANAGER.queueDownload(R.sounds.bullet);
   ASSET_MANAGER.queueDownload(R.sounds.bullet_boom);
   ASSET_MANAGER.queueDownload(R.sounds.alien_boom);
-
 
   ASSET_MANAGER.downloadAll(function() {
     game.init(ctx);
