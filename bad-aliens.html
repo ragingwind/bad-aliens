@@ -2,20 +2,21 @@
 <html>
   <head>
     <meta charset="utf-8">
-    <title>Bad Aliens - Google I/O 2011 HTML5 Games Example By My Hand</title>
-
+    <title>Bad Aliens</title>
     <script type="text/javascript">
-    // bad aliens resource file. if you need credit or resource and more info?
-    // please visit to [sethladd/Bad-Aliens · GitHub]( http://goo.gl/qxjlL )
     var R = {
-      earth: 'https://raw.github.com/sethladd/Bad-Aliens/master/static/img/earth.png',
-      alien: 'https://raw.github.com/sethladd/Bad-Aliens/master/static/img/alien.png',
-      sentry: 'https://raw.github.com/sethladd/Bad-Aliens/master/static/img/sentry.png',
-      bullet: 'https://raw.github.com/sethladd/Bad-Aliens/master/static/img/bullet.png',
-      explosion: 'https://raw.github.com/sethladd/Bad-Aliens/master/static/img/explosion.png',
-      smalllas: 'http://www.freesound.org/data/previews/18/18397_71614-lq.mp3',
-      rocketexpl: 'http://www.freesound.org/data/previews/47/47252_364925-lq.mp3',
-      usat_bomb: 'http://www.freesound.org/data/previews/35/35643_14771-lq.mp3'
+      images: {
+        earth: 'https://raw.github.com/sethladd/Bad-Aliens/master/static/img/earth.png',
+        alien: 'https://raw.github.com/sethladd/Bad-Aliens/master/static/img/alien.png',
+        sentry: 'https://raw.github.com/sethladd/Bad-Aliens/master/static/img/sentry.png',
+        bullet: 'https://raw.github.com/sethladd/Bad-Aliens/master/static/img/bullet.png',
+        explosion: 'https://raw.github.com/sethladd/Bad-Aliens/master/static/img/explosion.png'
+      },
+      sounds: {
+        bullet: 'https://github.com/sethladd/Bad-Aliens/raw/master/static/audio/bullet.mp3',
+        bullet_boom: 'https://github.com/sethladd/Bad-Aliens/raw/master/static/audio/bullet_boom.mp3',
+        alien_boom: 'https://github.com/sethladd/Bad-Aliens/raw/master/static/audio/alien_boom.mp3'
+      }
     };
 
     // [requestAnimationFrame for smart animating « Paul Irish]( http://goo.gl/hiFOk )
@@ -35,6 +36,7 @@
       this.errorCount = 0;
       this.cache = {};
       this.downloadQueue = [];
+      // this.soundsQueue = [];
     }
 
     AssetManager.prototype.queueDownload = function(path) {
@@ -46,28 +48,38 @@
     }
 
     AssetManager.prototype.downloadAll = function(callback) {
+      if (this.downloadQueue.length === 0) {
+        callback();
+      }
+
       for (var i = 0; i < this.downloadQueue.length; i++) {
         var path = this.downloadQueue[i];
-        var img = new Image();
+        var audio = path.substring(path.lastIndexOf('.') + 1) === 'mp3';
         var that = this;
+        var obj = (audio) ? new Audio() : new Image();
 
-        img.addEventListener("load", function() {
+        obj.addEventListener((audio) ? "canplaythrough" : "load", function() {
           that.successCount += 1;
           if (that.isDone()) {callback();}
         });
 
-        img.addEventListener("error", function() {
+        obj.addEventListener("error", function() {
           that.errorCount += 1;
           if (that.isDone()) {callback();}
         });
 
-        img.src = path;
-        this.cache[path] = img;
+        obj.src = path;
+        this.cache[path] = obj;
       }
     };
 
     AssetManager.prototype.getAsset = function(path) {
       return this.cache[path];
+    }
+
+    AssetManager.prototype.playSound = function(path) {
+      var audio = this.cache[path].cloneNode(false);
+      audio.play();
     }
 
     function Timer() {
@@ -280,7 +292,7 @@
       this.radial_distance = radial_distance;
       this.angle = angle;
       this.speed = 100;
-      this.sprite = this.rotateAndCache(ASSET_MANAGER.getAsset(R.alien), this.angle);
+      this.sprite = this.rotateAndCache(ASSET_MANAGER.getAsset(R.images.alien), this.angle);
       this.radius = this.sprite.height / 2;
       this.setCoords();
     }
@@ -309,7 +321,7 @@
     function Sentry(game) {
       this.distanceFromEarthCenter = 85;
       Entity.call(this, game, 0, this.distanceFromEarthCenter);
-      this.sprite = ASSET_MANAGER.getAsset(R.sentry);
+      this.sprite = ASSET_MANAGER.getAsset(R.images.sentry);
       this.radius = this.sprite.width / 2;
       this.angle = 0;
     }
@@ -344,6 +356,7 @@
     Sentry.prototype.shoot = function() {
       var bullet = new Bullet(this.game, this.x, this.y, this.angle, this.game.click);
       this.game.addEntity(bullet);
+      ASSET_MANAGER.playSound(R.sounds.bullet);
     };
 
     function Bullet(game, x, y, angle, explodesAt) {
@@ -352,7 +365,7 @@
       this.explodesAt = explodesAt;
       this.speed = 250;
       this.radial_distance = 95;
-      this.sprite = ASSET_MANAGER.getAsset(R.bullet);
+      this.sprite = ASSET_MANAGER.getAsset(R.images.bullet);
       this.animation = new Animation(this.sprite, 7, 0.05, true);
     }
 
@@ -364,6 +377,7 @@
         this.removeFromWorld = true;
       }
       else if (Math.abs(this.x) >= Math.abs(this.explodesAt.x) || Math.abs(this.y) >= Math.abs(this.explodesAt.y)) {
+        ASSET_MANAGER.playSound(R.sounds.bullet_boom);
         this.game.addEntity(new BulletExplosion(this.game, this.explodesAt.x, this.explodesAt.y));
         this.removeFromWorld = true;
       }
@@ -387,7 +401,7 @@
 
     function BulletExplosion(game, x, y) {
       Entity.call(this, game, x, y);
-      this.sprite = ASSET_MANAGER.getAsset(R.explosion);
+      this.sprite = ASSET_MANAGER.getAsset(R.images.explosion);
       this.animation = new Animation(this.sprite, 34, 0.05);
       this.radius = this.animation.frameWidth / 2;
     }
@@ -417,7 +431,7 @@
 
     function Earth(game) {
       Entity.call(this, game, 0, 0);
-      this.sprite = ASSET_MANAGER.getAsset(R.earth);
+      this.sprite = ASSET_MANAGER.getAsset(R.images.earth);
     }
 
     Earth.prototype = new Entity();
@@ -470,12 +484,16 @@
   var game = new EvilAliens();
   var ASSET_MANAGER = new AssetManager();
 
-  // change
-  ASSET_MANAGER.queueDownload(R.explosion);
-  ASSET_MANAGER.queueDownload(R.bullet);
-  ASSET_MANAGER.queueDownload(R.sentry);
-  ASSET_MANAGER.queueDownload(R.alien);
-  ASSET_MANAGER.queueDownload(R.earth);
+  ASSET_MANAGER.queueDownload(R.images.explosion);
+  ASSET_MANAGER.queueDownload(R.images.bullet);
+  ASSET_MANAGER.queueDownload(R.images.sentry);
+  ASSET_MANAGER.queueDownload(R.images.alien);
+  ASSET_MANAGER.queueDownload(R.images.earth);
+
+  ASSET_MANAGER.queueDownload(R.sounds.bullet);
+  ASSET_MANAGER.queueDownload(R.sounds.bullet_boom);
+  ASSET_MANAGER.queueDownload(R.sounds.alien_boom);
+
 
   ASSET_MANAGER.downloadAll(function() {
     game.init(ctx);
