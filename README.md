@@ -7,7 +7,7 @@ this game was created to learn to how to make game with html5. original example 
 * stats and performance wasn't implemented.
 
 # CAPTER
-* [01 Canvas - Create canvas]( https://github.com/ragingwind/bad-aliens/branches/01-canvas/bad-aliens.html )
+* [01 Canvas - Create canvas]( https://github.com/ragingwind/bad-aliens/blob/01-canvas/bad-aliens.html )
 * [02 Earth - Draw sprite to canvas]( https://github.com/ragingwind/bad-aliens/blob/02-earth/bad-aliens.html )
 * [03 Aliens - Make aliens]( https://github.com/ragingwind/bad-aliens/tree/03-aliens/bad-aliens.html )
 * [04 Timer - Create game timer to running game]( https://github.com/ragingwind/bad-aliens/tree/04-timer/bad-aliens.html )
